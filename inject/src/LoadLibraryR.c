@@ -71,15 +71,15 @@ DWORD Rva2Offset( DWORD dwRva, UINT_PTR uiBaseAddress, BOOL is64 )
 	return 0;
 }
 //===============================================================================================//
-DWORD GetReflectiveLoaderOffset( VOID * lpReflectiveDllBuffer )
+DWORD GetReflectiveLoaderOffset(VOID* lpReflectiveDllBuffer, LPCSTR cpReflectiveLoaderName)
 {
-	UINT_PTR uiBaseAddress   = 0;
-	UINT_PTR uiExportDir     = 0;
-	UINT_PTR uiNameArray     = 0;
-	UINT_PTR uiAddressArray  = 0;
-	UINT_PTR uiNameOrdinals  = 0;
-	DWORD dwCounter          = 0;
-	BOOL is64                = 0;
+	UINT_PTR uiBaseAddress = 0;
+	UINT_PTR uiExportDir = 0;
+	UINT_PTR uiNameArray = 0;
+	UINT_PTR uiAddressArray = 0;
+	UINT_PTR uiNameOrdinals = 0;
+	DWORD dwCounter = 0;
+	BOOL is64 = 0;
 
 	uiBaseAddress = (UINT_PTR)lpReflectiveDllBuffer;
 
@@ -87,18 +87,18 @@ DWORD GetReflectiveLoaderOffset( VOID * lpReflectiveDllBuffer )
 	uiExportDir = uiBaseAddress + ((PIMAGE_DOS_HEADER)uiBaseAddress)->e_lfanew;
 
 	// process a PE file based on its architecture
-	if( ((PIMAGE_NT_HEADERS)uiExportDir)->OptionalHeader.Magic == 0x010B ) // PE32
+	if (((PIMAGE_NT_HEADERS)uiExportDir)->OptionalHeader.Magic == 0x010B) // PE32
 	{
 		is64 = FALSE;
 		// uiNameArray = the address of the modules export directory entry
-		uiNameArray = (UINT_PTR)&((PIMAGE_NT_HEADERS32)uiExportDir)->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ];
+		uiNameArray = (UINT_PTR) & ((PIMAGE_NT_HEADERS32)uiExportDir)->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
 
 	}
-	else if( ((PIMAGE_NT_HEADERS)uiExportDir)->OptionalHeader.Magic == 0x020B ) // PE64
+	else if (((PIMAGE_NT_HEADERS)uiExportDir)->OptionalHeader.Magic == 0x020B) // PE64
 	{
 		is64 = TRUE;
 		// uiNameArray = the address of the modules export directory entry
-		uiNameArray = (UINT_PTR)&((PIMAGE_NT_HEADERS64)uiExportDir)->OptionalHeader.DataDirectory[ IMAGE_DIRECTORY_ENTRY_EXPORT ];
+		uiNameArray = (UINT_PTR) & ((PIMAGE_NT_HEADERS64)uiExportDir)->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
 
 	}
 	else
@@ -107,35 +107,48 @@ DWORD GetReflectiveLoaderOffset( VOID * lpReflectiveDllBuffer )
 	}
 
 	// get the File Offset of the export directory
-	uiExportDir = uiBaseAddress + Rva2Offset( ((PIMAGE_DATA_DIRECTORY)uiNameArray)->VirtualAddress, uiBaseAddress, is64 );
+	uiExportDir = uiBaseAddress + Rva2Offset(((PIMAGE_DATA_DIRECTORY)uiNameArray)->VirtualAddress, uiBaseAddress, is64);
 
 	// get the File Offset for the array of name pointers
-	uiNameArray = uiBaseAddress + Rva2Offset( ((PIMAGE_EXPORT_DIRECTORY )uiExportDir)->AddressOfNames, uiBaseAddress, is64 );
+	uiNameArray = uiBaseAddress + Rva2Offset(((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->AddressOfNames, uiBaseAddress, is64);
 
 	// get the File Offset for the array of addresses
-	uiAddressArray = uiBaseAddress + Rva2Offset( ((PIMAGE_EXPORT_DIRECTORY )uiExportDir)->AddressOfFunctions, uiBaseAddress, is64 );
+	uiAddressArray = uiBaseAddress + Rva2Offset(((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->AddressOfFunctions, uiBaseAddress, is64);
 
 	// get the File Offset for the array of name ordinals
-	uiNameOrdinals = uiBaseAddress + Rva2Offset( ((PIMAGE_EXPORT_DIRECTORY )uiExportDir)->AddressOfNameOrdinals, uiBaseAddress, is64 );
+	uiNameOrdinals = uiBaseAddress + Rva2Offset(((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->AddressOfNameOrdinals, uiBaseAddress, is64);
 
+	// test if we are importing by name or by ordinal...
+	if (((DWORD)cpReflectiveLoaderName & 0xFFFF0000) == 0x00000000)
+	{
+		// import by ordinal...
+
+		// use the import ordinal (- export ordinal base) as an index into the array of addresses
+		uiAddressArray += ((IMAGE_ORDINAL((DWORD)cpReflectiveLoaderName) - ((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->Base) * sizeof(DWORD));
+
+		// resolve the address for this imported function
+		return Rva2Offset(DEREF_32(uiAddressArray), uiBaseAddress, is64);
+	}
+
+	// import by name...
 	// get a counter for the number of exported functions...
-	dwCounter = ((PIMAGE_EXPORT_DIRECTORY )uiExportDir)->NumberOfNames;
+	dwCounter = ((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->NumberOfNames;
 
 	// loop through all the exported functions to find the ReflectiveLoader
-	while( dwCounter-- )
+	while (dwCounter--)
 	{
-		char * cpExportedFunctionName = (char *)(uiBaseAddress + Rva2Offset( DEREF_32( uiNameArray ), uiBaseAddress, is64 ));
+		char* cpExportedFunctionName = (char*)(uiBaseAddress + Rva2Offset(DEREF_32(uiNameArray), uiBaseAddress, is64));
 
-		if( strstr( cpExportedFunctionName, "ReflectiveLoader" ) != NULL )
+		if (strstr(cpExportedFunctionName, cpReflectiveLoaderName) != NULL)
 		{
 			// get the File Offset for the array of addresses
-			uiAddressArray = uiBaseAddress + Rva2Offset( ((PIMAGE_EXPORT_DIRECTORY )uiExportDir)->AddressOfFunctions, uiBaseAddress, is64 );
+			uiAddressArray = uiBaseAddress + Rva2Offset(((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->AddressOfFunctions, uiBaseAddress, is64);
 
 			// use the functions name ordinal as an index into the array of name pointers
-			uiAddressArray += ( DEREF_16( uiNameOrdinals ) * sizeof(DWORD) );
+			uiAddressArray += (DEREF_16(uiNameOrdinals) * sizeof(DWORD));
 
 			// return the File Offset to the ReflectiveLoader() functions code...
-			return Rva2Offset( DEREF_32( uiAddressArray ), uiBaseAddress, is64 );
+			return Rva2Offset(DEREF_32(uiAddressArray), uiBaseAddress, is64);
 		}
 		// get the next exported function name
 		uiNameArray += sizeof(DWORD);
@@ -146,9 +159,10 @@ DWORD GetReflectiveLoaderOffset( VOID * lpReflectiveDllBuffer )
 
 	return 0;
 }
+
 //===============================================================================================//
 // Loads a DLL image from memory via its exported ReflectiveLoader function
-HMODULE WINAPI LoadLibraryR( LPVOID lpBuffer, DWORD dwLength )
+HMODULE WINAPI LoadLibraryR( LPVOID lpBuffer, DWORD dwLength, LPCSTR cpReflectiveLoaderName )
 {
 	HMODULE hResult                    = NULL;
 	DWORD dwReflectiveLoaderOffset     = 0;
@@ -163,7 +177,7 @@ HMODULE WINAPI LoadLibraryR( LPVOID lpBuffer, DWORD dwLength )
 	__try
 	{
 		// check if the library has a ReflectiveLoader...
-		dwReflectiveLoaderOffset = GetReflectiveLoaderOffset( lpBuffer );
+		dwReflectiveLoaderOffset = GetReflectiveLoaderOffset( lpBuffer, cpReflectiveLoaderName );
 		if( dwReflectiveLoaderOffset != 0 )
 		{
 			pReflectiveLoader = (REFLECTIVELOADER)((UINT_PTR)lpBuffer + dwReflectiveLoaderOffset);
@@ -202,7 +216,7 @@ HMODULE WINAPI LoadLibraryR( LPVOID lpBuffer, DWORD dwLength )
 // Note: If you are passing in an lpParameter value, if it is a pointer, remember it is for a different address space.
 // Note: This function currently cant inject accross architectures, but only to architectures which are the
 //       same as the arch this function is compiled as, e.g. x86->x86 and x64->x64 but not x64->x86 or x86->x64.
-HANDLE WINAPI LoadRemoteLibraryR( HANDLE hProcess, LPVOID lpBuffer, DWORD dwLength, LPVOID lpParameter )
+HANDLE WINAPI LoadRemoteLibraryR( HANDLE hProcess, LPVOID lpBuffer, DWORD dwLength, LPCSTR cpReflectiveLoaderName, LPVOID lpParameter )
 {
 	LPVOID lpRemoteLibraryBuffer              = NULL;
 	LPTHREAD_START_ROUTINE lpReflectiveLoader = NULL;
@@ -218,7 +232,7 @@ HANDLE WINAPI LoadRemoteLibraryR( HANDLE hProcess, LPVOID lpBuffer, DWORD dwLeng
 				break;
 
 			// check if the library has a ReflectiveLoader...
-			dwReflectiveLoaderOffset = GetReflectiveLoaderOffset( lpBuffer );
+			dwReflectiveLoaderOffset = GetReflectiveLoaderOffset( lpBuffer, cpReflectiveLoaderName);
 			if( !dwReflectiveLoaderOffset )
 				break;
 

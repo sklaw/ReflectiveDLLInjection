@@ -102,7 +102,8 @@ int main( int argc, char * argv[] )
 		if( !hProcess )
 			BREAK_WITH_ERROR( "Failed to open the target process" );
 
-		hModule = LoadRemoteLibraryR( hProcess, lpBuffer, dwLength, NULL );
+		hModule = LoadRemoteLibraryR( hProcess, lpBuffer, dwLength, "ReflectiveLoader", NULL );
+		//hModule = LoadRemoteLibraryR( hProcess, lpBuffer, dwLength, MAKEINTRESOURCE(1), NULL );
 		if( !hModule )
 			BREAK_WITH_ERROR( "Failed to inject the DLL" );
 

@@ -52,11 +52,18 @@ __declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)_ReturnAddress
 // Note 2: If you are injecting the DLL via LoadRemoteLibraryR, define REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR,
 //         otherwise it is assumed you are calling the ReflectiveLoader via a stub.
 
+
+#ifdef RDIDLL_NOEXPORT
+#define RDIDLLEXPORT
+#else
+#define RDIDLLEXPORT DLLEXPORT
+#endif
+
 // This is our position independent reflective DLL loader/injector
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
-DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( LPVOID lpParameter )
+RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( LPVOID lpParameter )
 #else
-DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
+RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 #endif
 {
 	// the functions we need
