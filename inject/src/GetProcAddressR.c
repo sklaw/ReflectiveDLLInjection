@@ -78,7 +78,7 @@ FARPROC WINAPI GetProcAddressR( HANDLE hModule, LPCSTR lpProcName )
 			// import by ordinal...
 
 			// use the import ordinal (- export ordinal base) as an index into the array of addresses
-			uiAddressArray += ( ( IMAGE_ORDINAL( (DWORD)lpProcName ) - pExportDirectory->Base ) * sizeof(DWORD) );
+			uiAddressArray += ( ( IMAGE_ORDINAL( (DWORD)(DWORD_PTR)lpProcName ) - pExportDirectory->Base ) * sizeof(DWORD) );
 
 			// resolve the address for this imported function
 			fpResult = (FARPROC)( uiLibraryAddress + DEREF_32(uiAddressArray) );

@@ -30,14 +30,17 @@
 // Our loader will set this to a pseudo correct HINSTANCE/HMODULE value
 HINSTANCE hAppInstance = NULL;
 //===============================================================================================//
-#ifndef __MINGW32__
+#ifdef __MINGW32__
+#define WIN_GET_CALLER() __builtin_extract_return_addr(__builtin_return_address(0))
+#else
 #pragma intrinsic(_ReturnAddress)
+#define WIN_GET_CALLER() _ReturnAddress()
 #endif
 // This function can not be inlined by the compiler or we will not get the address we expect. Ideally
 // this code will be compiled with the /O2 and /Ob1 switches. Bonus points if we could take advantage of
 // RIP relative addressing in this instance but I dont believe we can do so with the compiler intrinsics
 // available (and no inline asm available under x64).
-__declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)_ReturnAddress(); }
+__declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)WIN_GET_CALLER(); }
 //===============================================================================================//
 
 #ifdef ENABLE_OUTPUTDEBUGSTRING
@@ -53,17 +56,11 @@ __declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)_ReturnAddress
 //         otherwise it is assumed you are calling the ReflectiveLoader via a stub.
 
 
-#ifdef RDIDLL_NOEXPORT
-#define RDIDLLEXPORT
-#else
-#define RDIDLLEXPORT DLLEXPORT
-#endif
-
 // This is our position independent reflective DLL loader/injector
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
-RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( LPVOID lpParameter )
+DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( LPVOID lpParameter )
 #else
-RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
+DLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 #endif
 {
 	// the functions we need
@@ -133,7 +130,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 #else
 #ifdef WIN_ARM
 	uiBaseAddress = *(DWORD *)( (BYTE *)_MoveFromCoprocessor( 15, 0, 13, 0, 2 ) + 0x30 );
-#else _WIN32
+#else // _WIN32
 	uiBaseAddress = __readfsdword( 0x30 );
 #endif
 #endif
