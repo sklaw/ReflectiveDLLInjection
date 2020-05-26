@@ -43,18 +43,11 @@ HINSTANCE hAppInstance = NULL;
 __declspec(noinline) ULONG_PTR caller( VOID ) { return (ULONG_PTR)WIN_GET_CALLER(); }
 //===============================================================================================//
 
-#ifdef ENABLE_OUTPUTDEBUGSTRING
-#define OUTPUTDBG(str) pOutputDebug((LPCSTR)str)
-#else /* ENABLE_OUTPUTDEBUGSTRING */
-#define OUTPUTDBG(str) do{}while(0)
-#endif
-
 // Note 1: If you want to have your own DllMain, define REFLECTIVEDLLINJECTION_CUSTOM_DLLMAIN,
 //         otherwise the DllMain at the end of this file will be used.
 
 // Note 2: If you are injecting the DLL via LoadRemoteLibraryR, define REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR,
 //         otherwise it is assumed you are calling the ReflectiveLoader via a stub.
-
 
 #ifdef RDIDLL_NOEXPORT
 #define RDIDLLEXPORT
@@ -76,9 +69,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	NTFLUSHINSTRUCTIONCACHE pNtFlushInstructionCache = NULL;
 #ifdef ENABLE_STOPPAGING
 	VIRTUALLOCK pVirtualLock	   = NULL;
-#endif
-#ifdef ENABLE_OUTPUTDEBUGSTRING
-	OUTPUTDEBUG pOutputDebug       = NULL;
 #endif
 
 	USHORT usCounter;
@@ -194,9 +184,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 #ifdef ENABLE_STOPPAGING
 			usCounter++;
 #endif
-#ifdef ENABLE_OUTPUTDEBUGSTRING
-			usCounter++;
-#endif
 
 			// loop while we still have imports to find
 			while( usCounter > 0 )
@@ -210,9 +197,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 					|| dwHashValue == VIRTUALALLOC_HASH
 #ifdef ENABLE_STOPPAGING
 					|| dwHashValue == VIRTUALLOCK_HASH
-#endif
-#ifdef ENABLE_OUTPUTDEBUGSTRING
-					|| dwHashValue == OUTPUTDEBUG_HASH
 #endif
 					)
 				{
@@ -232,10 +216,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 #ifdef ENABLE_STOPPAGING
 					else if( dwHashValue == VIRTUALLOCK_HASH )
 						pVirtualLock = (VIRTUALLOCK)( uiBaseAddress + DEREF_32( uiAddressArray ) );
-#endif
-#ifdef ENABLE_OUTPUTDEBUGSTRING
-					else if( dwHashValue == OUTPUTDEBUG_HASH )
-						pOutputDebug = (OUTPUTDEBUG)( uiBaseAddress + DEREF_32( uiAddressArray ) );
 #endif
 
 					// decrement our counter
@@ -310,9 +290,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 			&& pVirtualLock
 #endif
 			&& pNtFlushInstructionCache
-#ifdef ENABLE_OUTPUTDEBUGSTRING
-			&& pOutputDebug
-#endif
 			)
 			break;
 
@@ -360,6 +337,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		// copy the section over
 		uiValueD = ((PIMAGE_SECTION_HEADER)uiValueA)->SizeOfRawData;
 
+
 		while( uiValueD-- )
 			*(BYTE *)uiValueB++ = *(BYTE *)uiValueC++;
 
@@ -379,17 +357,11 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// iterate through all imports until a null RVA is found (Characteristics is mis-named)
 	while( ((PIMAGE_IMPORT_DESCRIPTOR)uiValueC)->Characteristics )
 	{
-		OUTPUTDBG("Loading library: ");
-		OUTPUTDBG((LPCSTR)(uiBaseAddress + ((PIMAGE_IMPORT_DESCRIPTOR)uiValueC)->Name));
-		OUTPUTDBG("\n");
-
 		// use LoadLibraryA to load the imported module into memory
 		uiLibraryAddress = (ULONG_PTR)pLoadLibraryA( (LPCSTR)( uiBaseAddress + ((PIMAGE_IMPORT_DESCRIPTOR)uiValueC)->Name ) );
 
 		if ( !uiLibraryAddress )
 		{
-			OUTPUTDBG("Loading library FAILED\n");
-
 			uiValueC += sizeof( IMAGE_IMPORT_DESCRIPTOR );
 			continue;
 		}
@@ -403,6 +375,20 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		// itterate through all imported functions, importing by ordinal if no name present
 		while( DEREF(uiValueA) )
 		{
+			// Some compilers/libs like to do silly things like fail to have a terminator at the
+			// end of the import descriptor thunks that result in import descriptor tables
+			// running over into those that belong to other libraries. As a result, we end up
+			// in a situation where resolution of functions in Library 2 are done against
+			// Library 1. All those calls to GetProcAddress result in NULL, which splats the
+			// thunk and results in all the IAT entries for that library being set to zero.
+			// This is what happened with the custom winsta.lib in kiwi when compiling with
+			// mingw on Linux. INORITE! So here we instead check to make sure that we don't
+			// bleed into the thunks that belong to the next library. We do this by seeing if
+			// there is a next lib, and then making sure we don't go past the FirstThunk RVA
+			uiValueE = uiValueC + sizeof( IMAGE_IMPORT_DESCRIPTOR );
+			if( ((PIMAGE_IMPORT_DESCRIPTOR)(uiValueE))->Characteristics && uiValueA >= uiBaseAddress + ((PIMAGE_IMPORT_DESCRIPTOR)(uiValueE))->FirstThunk )
+				break;
+
 			// sanity check uiValueD as some compilers only import by FirstThunk
 			if( uiValueD && ((PIMAGE_THUNK_DATA)uiValueD)->u1.Ordinal & IMAGE_ORDINAL_FLAG )
 			{
@@ -428,10 +414,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 			{
 				// get the VA of this functions import by name struct
 				uiValueB = ( uiBaseAddress + DEREF(uiValueA) );
-
-				OUTPUTDBG("Resolving function: ");
-				OUTPUTDBG(((PIMAGE_IMPORT_BY_NAME)uiValueB)->Name);
-				OUTPUTDBG("\n");
 
 				// use GetProcAddress and patch in the address for this imported function
 				DEREF(uiValueA) = (ULONG_PTR)pGetProcAddress( (HMODULE)uiLibraryAddress, (LPCSTR)((PIMAGE_IMPORT_BY_NAME)uiValueB)->Name );
@@ -537,7 +519,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// uiValueA = the VA of our newly loaded DLL/EXE's entry point
 	uiValueA = ( uiBaseAddress + ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.AddressOfEntryPoint );
 
-	OUTPUTDBG("Flushing the instruction cache");
 	// We must flush the instruction cache to avoid stale code being used which was updated by our relocation processing.
 	pNtFlushInstructionCache( (HANDLE)-1, NULL, 0 );
 
