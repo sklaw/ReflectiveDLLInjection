@@ -119,7 +119,7 @@ DWORD GetReflectiveLoaderOffset(VOID* lpReflectiveDllBuffer, LPCSTR cpReflective
 	uiNameOrdinals = uiBaseAddress + Rva2Offset(((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->AddressOfNameOrdinals, uiBaseAddress, is64);
 
 	// test if we are importing by name or by ordinal...
-	if (((DWORD)cpReflectiveLoaderName & 0xFFFF0000) == 0x00000000)
+	if ((((DWORD_PTR)cpReflectiveLoaderName) >> 16) == 0)
 	{
 		// import by ordinal...
 
