@@ -73,7 +73,7 @@ FARPROC WINAPI GetProcAddressR( HANDLE hModule, LPCSTR lpProcName )
 		uiNameOrdinals = ( uiLibraryAddress + pExportDirectory->AddressOfNameOrdinals );
 
 		// test if we are importing by name or by ordinal...
-		if( ((DWORD)lpProcName & 0xFFFF0000 ) == 0x00000000 )
+		if( (((DWORD_PTR)lpProcName) >> 16) == 0 )
 		{
 			// import by ordinal...
 
