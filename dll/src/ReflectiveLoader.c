@@ -375,20 +375,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		// itterate through all imported functions, importing by ordinal if no name present
 		while( DEREF(uiValueA) )
 		{
-			// Some compilers/libs like to do silly things like fail to have a terminator at the
-			// end of the import descriptor thunks that result in import descriptor tables
-			// running over into those that belong to other libraries. As a result, we end up
-			// in a situation where resolution of functions in Library 2 are done against
-			// Library 1. All those calls to GetProcAddress result in NULL, which splats the
-			// thunk and results in all the IAT entries for that library being set to zero.
-			// This is what happened with the custom winsta.lib in kiwi when compiling with
-			// mingw on Linux. INORITE! So here we instead check to make sure that we don't
-			// bleed into the thunks that belong to the next library. We do this by seeing if
-			// there is a next lib, and then making sure we don't go past the FirstThunk RVA
-			uiValueE = uiValueC + sizeof( IMAGE_IMPORT_DESCRIPTOR );
-			if( ((PIMAGE_IMPORT_DESCRIPTOR)(uiValueE))->Characteristics && uiValueA >= uiBaseAddress + ((PIMAGE_IMPORT_DESCRIPTOR)(uiValueE))->FirstThunk )
-				break;
-
 			// sanity check uiValueD as some compilers only import by FirstThunk
 			if( uiValueD && ((PIMAGE_THUNK_DATA)uiValueD)->u1.Ordinal & IMAGE_ORDINAL_FLAG )
 			{
