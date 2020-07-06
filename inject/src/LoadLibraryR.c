@@ -92,7 +92,6 @@ DWORD GetReflectiveLoaderOffset(VOID* lpReflectiveDllBuffer, LPCSTR cpReflective
 		is64 = FALSE;
 		// uiNameArray = the address of the modules export directory entry
 		uiNameArray = (UINT_PTR) & ((PIMAGE_NT_HEADERS32)uiExportDir)->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
-
 	}
 	else if (((PIMAGE_NT_HEADERS)uiExportDir)->OptionalHeader.Magic == 0x020B) // PE64
 	{
@@ -124,7 +123,7 @@ DWORD GetReflectiveLoaderOffset(VOID* lpReflectiveDllBuffer, LPCSTR cpReflective
 		// import by ordinal...
 
 		// use the import ordinal (- export ordinal base) as an index into the array of addresses
-		uiAddressArray += ((IMAGE_ORDINAL((DWORD)cpReflectiveLoaderName) - ((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->Base) * sizeof(DWORD));
+		uiAddressArray += ((IMAGE_ORDINAL((DWORD)(DWORD_PTR)cpReflectiveLoaderName) - ((PIMAGE_EXPORT_DIRECTORY)uiExportDir)->Base) * sizeof(DWORD));
 
 		// resolve the address for this imported function
 		return Rva2Offset(DEREF_32(uiAddressArray), uiBaseAddress, is64);
@@ -253,7 +252,7 @@ HANDLE WINAPI LoadRemoteLibraryR( HANDLE hProcess, LPVOID lpBuffer, DWORD dwLeng
 			lpReflectiveLoader = (LPTHREAD_START_ROUTINE)( (ULONG_PTR)lpRemoteLibraryBuffer + dwReflectiveLoaderOffset );
 
 			// create a remote thread in the host process to call the ReflectiveLoader!
-			hThread = CreateRemoteThread( hProcess, NULL, 1024*1024, lpReflectiveLoader, lpParameter, (DWORD)NULL, &dwThreadId );
+			hThread = CreateRemoteThread( hProcess, NULL, 1024*1024, lpReflectiveLoader, lpParameter, (DWORD_PTR)NULL, &dwThreadId );
 
 		} while( 0 );
 
