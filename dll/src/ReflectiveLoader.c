@@ -65,6 +65,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// the functions we need
 	LOADLIBRARYA pLoadLibraryA     = NULL;
 	GETPROCADDRESS pGetProcAddress = NULL;
+	VIRTUALPROTECT pVirtualProtect = NULL;
 	VIRTUALALLOC pVirtualAlloc     = NULL;
 	NTFLUSHINSTRUCTIONCACHE pNtFlushInstructionCache = NULL;
 #ifdef ENABLE_STOPPAGING
@@ -200,6 +201,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 				// if we have found a function we want we get its virtual address
 				if( dwHashValue == LOADLIBRARYA_HASH
 					|| dwHashValue == GETPROCADDRESS_HASH
+					|| dwHashValue == VIRTUALPROTECT_HASH
 					|| dwHashValue == VIRTUALALLOC_HASH
 #ifdef ENABLE_STOPPAGING
 					|| dwHashValue == VIRTUALLOCK_HASH
@@ -217,6 +219,8 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 						pLoadLibraryA = (LOADLIBRARYA)( uiBaseAddress + DEREF_32( uiAddressArray ) );
 					else if( dwHashValue == GETPROCADDRESS_HASH )
 						pGetProcAddress = (GETPROCADDRESS)( uiBaseAddress + DEREF_32( uiAddressArray ) );
+					else if( dwHashValue == VIRTUALPROTECT_HASH)
+						pVirtualProtect = (VIRTUALPROTECT)( uiBaseAddress + DEREF_32( uiAddressArray ) );
 					else if( dwHashValue == VIRTUALALLOC_HASH )
 						pVirtualAlloc = (VIRTUALALLOC)( uiBaseAddress + DEREF_32( uiAddressArray ) );
 #ifdef ENABLE_STOPPAGING
@@ -291,6 +295,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		// we stop searching when we have found everything we need.
 		if( pLoadLibraryA
 			&& pGetProcAddress
+			&& pVirtualProtect
 			&& pVirtualAlloc
 #ifdef ENABLE_STOPPAGING
 			&& pVirtualLock
@@ -310,7 +315,8 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 	// allocate all the memory for the DLL to be loaded into. we can load at any address because we will
 	// relocate the image. Also zeros all memory and marks it as READ, WRITE and EXECUTE to avoid any problems.
-	uiBaseAddress = (ULONG_PTR)pVirtualAlloc( NULL, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage, MEM_RESERVE|MEM_COMMIT, PAGE_EXECUTE_READWRITE );
+	uiBaseAddress = (ULONG_PTR)pVirtualAlloc( NULL, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE );
+
 
 #ifdef ENABLE_STOPPAGING
 	// prevent our image from being swapped to the pagefile
@@ -524,7 +530,16 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 #endif
 
 	// STEP 8: return our new entry point address so whatever called us can call DllMain() if needed.
-	return uiValueA;
+
+
+
+	DWORD old_protect = 0;
+	BOOL vp_succeeded = pVirtualProtect(uiBaseAddress, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READ, &old_protect);
+	if (vp_succeeded) {
+		return uiValueA;
+	} else {
+		return (ULONG_PTR)NULL;
+	}
 }
 //===============================================================================================//
 #ifndef REFLECTIVEDLLINJECTION_CUSTOM_DLLMAIN
