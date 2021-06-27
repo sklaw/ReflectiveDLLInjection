@@ -331,6 +331,9 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	while( uiValueA-- )
 		*(BYTE *)uiValueC++ = *(BYTE *)uiValueB++;
 
+
+	// TODO: make header RX
+
 	// STEP 3: load in all of our sections...
 
 	// uiValueA = the VA of the first section
@@ -340,6 +343,10 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	uiValueE = ((PIMAGE_NT_HEADERS)uiHeaderValue)->FileHeader.NumberOfSections;
 	while( uiValueE-- )
 	{
+
+		// TODO: if section name == ".text" (use hash), set it to be RX
+
+
 		// uiValueB is the VA for this section
 		uiValueB = ( uiBaseAddress + ((PIMAGE_SECTION_HEADER)uiValueA)->VirtualAddress );
 
@@ -520,6 +527,12 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// We must flush the instruction cache to avoid stale code being used which was updated by our relocation processing.
 	pNtFlushInstructionCache( (HANDLE)-1, NULL, 0 );
 
+
+
+	DWORD old_protect = 0;
+	BOOL vp_succeeded = pVirtualProtect(uiBaseAddress, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READ, &old_protect);
+
+
 	// call our respective entry point, fudging our hInstance value
 #ifdef REFLECTIVEDLLINJECTION_VIA_LOADREMOTELIBRARYR
 	// if we are injecting a DLL via LoadRemoteLibraryR we call DllMain and pass in our parameter (via the DllMain lpReserved parameter)
@@ -533,8 +546,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 
 
-	DWORD old_protect = 0;
-	BOOL vp_succeeded = pVirtualProtect(uiBaseAddress, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READ, &old_protect);
 	if (vp_succeeded) {
 		return uiValueA;
 	} else {
