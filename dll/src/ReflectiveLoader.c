@@ -74,6 +74,9 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 	USHORT usCounter;
 
+	DWORD old_protect = 0;
+	BOOL vp_succeeded;
+
 	// the initial location of this image in memory
 	ULONG_PTR uiLibraryAddress;
 	// the kernels base address and later this images newly loaded base address
@@ -121,6 +124,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		uiLibraryAddress--;
 	}
 
+	// stomp MZ
 	DOS_header = uiLibraryAddress;
 	DOS_header[0] = 0;
 	DOS_header[1] = 0;
@@ -332,7 +336,13 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		*(BYTE *)uiValueC++ = *(BYTE *)uiValueB++;
 
 
-	// TODO: make header RX
+	// For later: make header RX
+	ULONG_PTR header_base = uiBaseAddress;
+	SIZE_T header_size = ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfHeaders;		
+	// For later: make header RX
+	ULONG_PTR text_section_base;
+	SIZE_T text_section_size;
+
 
 	// STEP 3: load in all of our sections...
 
@@ -344,8 +354,12 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	while( uiValueE-- )
 	{
 
-		// TODO: if section name == ".text" (use hash), set it to be RX
-
+	
+		dwHashValue = _hash( (char *)( (PIMAGE_SECTION_HEADER)uiValueA)->Name );
+		if( dwHashValue == 0xebc2f9b4) {
+			text_section_base = ( uiBaseAddress + ((PIMAGE_SECTION_HEADER)uiValueA)->VirtualAddress );
+			text_section_size = ((PIMAGE_SECTION_HEADER)uiValueA)->SizeOfRawData;
+		}
 
 		// uiValueB is the VA for this section
 		uiValueB = ( uiBaseAddress + ((PIMAGE_SECTION_HEADER)uiValueA)->VirtualAddress );
@@ -529,8 +543,14 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 
 
-	DWORD old_protect = 0;
-	BOOL vp_succeeded = pVirtualProtect(uiBaseAddress, ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfImage, PAGE_EXECUTE_READ, &old_protect);
+	vp_succeeded = pVirtualProtect(header_base, header_size, PAGE_EXECUTE_READ, &old_protect);
+	if (!vp_succeeded) {
+		return (ULONG_PTR)NULL;
+	}
+	vp_succeeded = pVirtualProtect(text_section_base, text_section_size, PAGE_EXECUTE_READ, &old_protect);
+	if (!vp_succeeded) {
+		return (ULONG_PTR)NULL;
+	}
 
 
 	// call our respective entry point, fudging our hInstance value
@@ -544,13 +564,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 	// STEP 8: return our new entry point address so whatever called us can call DllMain() if needed.
 
-
-
-	if (vp_succeeded) {
-		return uiValueA;
-	} else {
-		return (ULONG_PTR)NULL;
-	}
+	return uiValueA;
 }
 //===============================================================================================//
 #ifndef REFLECTIVEDLLINJECTION_CUSTOM_DLLMAIN
