@@ -125,7 +125,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	}
 
 	// stomp MZ
-	DOS_header = uiLibraryAddress;
+	DOS_header = (char *)uiLibraryAddress;
 	DOS_header[0] = 0;
 	DOS_header[1] = 0;
 
@@ -337,10 +337,10 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 
 
 	// For later: make header RX
-	ULONG_PTR header_base = uiBaseAddress;
+	LPVOID header_base = (LPVOID)uiBaseAddress;
 	SIZE_T header_size = ((PIMAGE_NT_HEADERS)uiHeaderValue)->OptionalHeader.SizeOfHeaders;		
 	// For later: make header RX
-	ULONG_PTR text_section_base;
+	LPVOID text_section_base;
 	SIZE_T text_section_size;
 
 
@@ -357,7 +357,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	
 		dwHashValue = _hash( (char *)( (PIMAGE_SECTION_HEADER)uiValueA)->Name );
 		if( dwHashValue == 0xebc2f9b4) {
-			text_section_base = ( uiBaseAddress + ((PIMAGE_SECTION_HEADER)uiValueA)->VirtualAddress );
+			text_section_base = (LPVOID)( uiBaseAddress + ((PIMAGE_SECTION_HEADER)uiValueA)->VirtualAddress );
 			text_section_size = ((PIMAGE_SECTION_HEADER)uiValueA)->SizeOfRawData;
 		}
 
