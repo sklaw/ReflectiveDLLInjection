@@ -124,11 +124,6 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 		uiLibraryAddress--;
 	}
 
-	// stomp MZ
-	DOS_header = (char *)uiLibraryAddress;
-	DOS_header[0] = 0;
-	DOS_header[1] = 0;
-
 	// STEP 1: process the kernels exports for the functions our loader needs...
 
 	// get the Process Enviroment Block
