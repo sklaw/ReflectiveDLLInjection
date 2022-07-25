@@ -41,6 +41,8 @@
 #define DLL_METASPLOIT_DETACH	5
 #define DLL_QUERY_HMODULE		6
 
+#define MY_IMAGE_DOS_SIGNATURE 0x4D5A  // ZM
+
 #define DEREF( name )*(UINT_PTR *)(name)
 #define DEREF_64( name )*(DWORD64 *)(name)
 #define DEREF_32( name )*(DWORD *)(name)

@@ -108,7 +108,7 @@ RDIDLLEXPORT ULONG_PTR WINAPI ReflectiveLoader( VOID )
 	// we dont need SEH style search as we shouldnt generate any access violations with this
 	while( TRUE )
 	{
-		if( ((PIMAGE_DOS_HEADER)uiLibraryAddress)->e_magic == IMAGE_DOS_SIGNATURE )
+		if( ((PIMAGE_DOS_HEADER)uiLibraryAddress)->e_magic == MY_IMAGE_DOS_SIGNATURE)
 		{
 			uiHeaderValue = ((PIMAGE_DOS_HEADER)uiLibraryAddress)->e_lfanew;
 			// some x64 dll's can trigger a bogus signature (IMAGE_DOS_SIGNATURE == 'POP r10'),
