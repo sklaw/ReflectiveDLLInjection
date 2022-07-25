@@ -53,6 +53,7 @@ typedef ULONG_PTR (WINAPI * REFLECTIVELOADER)( VOID );
 typedef BOOL (WINAPI * DLLMAIN)( HINSTANCE, DWORD, LPVOID );
 
 #define DLLEXPORT   __declspec( dllexport ) 
+#define RDIDLL_NOEXPORT
 
 //===============================================================================================//
 #endif
